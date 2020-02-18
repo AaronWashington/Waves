@@ -186,12 +186,13 @@ class Application(val actorSystem: ActorSystem, val settings: WavesSettings, con
 
     val history = History(blockchainUpdater, blockchainUpdater.liquidBlock, blockchainUpdater.microBlock, db)
 
-    def loadBlockAt(height: Int): Option[(BlockMeta, Seq[Transaction])] = loadBlockMetaAt(height).map { meta =>
-      meta -> blockchainUpdater
-        .liquidBlock(meta.signature)
-        .orElse(history.loadBlockBytes(meta.signature).flatMap { case (_, bytes) => Block.parseBytes(bytes).toOption })
-        .fold(Seq.empty[Transaction])(_.transactionData)
-    }
+    def loadBlockAt(height: Int): Option[(BlockMeta, Seq[Transaction])] =
+      loadBlockMetaAt(height).map { meta =>
+        meta -> blockchainUpdater
+          .liquidBlock(meta.signature)
+          .orElse(db.readOnly(ro => database.loadBlock(Height(height), ro)))
+          .fold(Seq.empty[Transaction])(_.transactionData)
+      }
 
     def loadBlockMetaAt(height: Int): Option[BlockMeta] =
       blockchainUpdater.liquidBlockMeta.filter(_ => blockchainUpdater.height == height).orElse(db.get(Keys.blockMetaAt(Height(height))))
